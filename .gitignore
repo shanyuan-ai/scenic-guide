@@ -15,4 +15,4 @@ db.sqlite3
 
 # IDE 配置
 .vscode/
-.idea/
+.idea/"data/" 
