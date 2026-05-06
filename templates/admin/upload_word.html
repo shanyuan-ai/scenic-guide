@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>知识库 - 上传 Word</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            background: #f5f5f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            width: 500px;
+        }
+        h2 { text-align: center; color: #333; }
+        .form-group { margin: 20px 0; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: 600; color: #555; }
+        .form-group input[type="file"] { width: 100%; }
+        .btn {
+            width: 100%; padding: 12px;
+            background: #667eea; color: white; border: none;
+            border-radius: 8px; font-size: 16px; cursor: pointer;
+        }
+        .btn:hover { background: #5a6fd6; }
+        .btn:disabled { background: #ccc; cursor: not-allowed; }
+        .message { padding: 12px; border-radius: 8px; margin: 20px 0; display: none; }
+        .message.success { background: #e8f5e9; color: #2e7d32; display: block; }
+        .message.error { background: #ffebee; color: #c62828; display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>导入知识库</h2>
+        <div class="form-group">
+            <label for="fileInput">选择 Word 文件</label>
+            <input type="file" id="fileInput" accept=".docx">
+            <small>仅支持 .docx 格式，标题和正文交替排列</small>
+        </div>
+        <button class="btn" id="uploadBtn" onclick="uploadFile()">开始导入</button>
+        <div class="message" id="messageBox"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://127.0.0.1:8000/api';
+
+        function getToken() {
+            const params = new URLSearchParams(window.location.search);
+            const urlToken = params.get('token');
+            if (urlToken) {
+                localStorage.setItem('access_token', urlToken);
+                return urlToken;
+            }
+            return localStorage.getItem('access_token');
+        }
+
+        function showMessage(msg, type) {
+            const box = document.getElementById('messageBox');
+            box.textContent = msg;
+            box.className = 'message ' + type;
+        }
+
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            const token = getToken();
+
+            if (!file) {
+                showMessage('请先选择文件', 'error');
+                return;
+            }
+
+            if (!token) {
+                showMessage('请先登录', 'error');
+                window.location.href = '/api/login-page/';
+                return;
+            }
+
+            const btn = document.getElementById('uploadBtn');
+            btn.disabled = true;
+            btn.textContent = '导入中...';
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch(API_BASE + '/upload-word/?token=' + token, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.code === 200) {
+                    showMessage(result.message, 'success');
+                } else if (response.status === 401) {
+                    showMessage('登录已过期，请重新登录', 'error');
+                    setTimeout(() => window.location.href = '/api/login-page/', 1500);
+                } else {
+                    showMessage(result.message || '上传失败', 'error');
+                }
+            } catch (error) {
+                showMessage('网络错误，请确认后端已启动', 'error');
+                console.error(error);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '开始导入';
+            }
+        }
+    </script>
+</body>
+</html>
