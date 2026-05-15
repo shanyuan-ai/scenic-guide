@@ -3,28 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>景区导览 AI 数字人</title>
+    <title>景区导览 AI 数字人 - 小灵</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-			.btn-import {
-			    padding: 8px 20px;
-			    background: rgba(102, 126, 234, 0.2);
-			    color: #7c83ff;
-			    border: 1px solid rgba(102, 126, 234, 0.4);
-			    border-radius: 8px;
-			    cursor: pointer;
-			    font-size: 13px;
-			    transition: all 0.2s;
-			    margin-right: 10px;
-			}
-			
-			.btn-import:hover {
-			    background: rgba(102, 126, 234, 0.35);
-			    border-color: #7c83ff;
-			}
+        }
+        
+        .btn-import {
+            padding: 8px 20px;
+            background: rgba(102, 126, 234, 0.2);
+            color: #7c83ff;
+            border: 1px solid rgba(102, 126, 234, 0.4);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+            margin-right: 10px;
+        }
+        
+        .btn-import:hover {
+            background: rgba(102, 126, 234, 0.35);
+            border-color: #7c83ff;
         }
 
         body {
@@ -55,6 +56,8 @@
             padding: 16px 24px;
             background: rgba(255, 255, 255, 0.03);
             border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            flex-wrap: wrap;
+            gap: 10px;
         }
 
         .top-bar .user-info {
@@ -64,6 +67,34 @@
 
         .top-bar .user-info strong {
             color: #7c83ff;
+        }
+
+        /* 模型选择器样式 */
+        .model-selector {
+            margin-left: auto;
+            margin-right: 15px;
+        }
+
+        .model-select {
+            padding: 6px 12px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 8px;
+            color: #e0e4f0;
+            font-size: 13px;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .model-select:hover {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: #667eea;
+        }
+
+        .model-select option {
+            background: #16213e;
+            color: #e0e4f0;
         }
 
         .btn-logout {
@@ -277,6 +308,14 @@
             transform: none;
             box-shadow: none;
         }
+
+        /* 模型信息提示 */
+        .model-info {
+            font-size: 11px;
+            color: #5a6080;
+            margin-top: 8px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -284,6 +323,16 @@
     <div class="main-container">
         <div class="top-bar">
             <span class="user-info">欢迎，<strong id="displayName">游客</strong></span>
+            <div class="model-selector">
+                <select id="modelSelect" class="model-select">
+                    <option value="doubao">🎨 豆包 AI (推荐)</option>
+                    <option value="openai">🤖 GPT-3.5</option>
+                    <option value="gpt4">🚀 GPT-4</option>
+                    <option value="deepseek">🔍 DeepSeek</option>
+                    <option value="qwen">🐫 通义千问</option>
+                    <option value="local">💻 本地模型</option>
+                </select>
+            </div>
             <div>
                 <button class="btn-import" id="btnImport" onclick="goToImport()" style="display:none;">📄 导入文档</button>
                 <button class="btn-logout" onclick="handleLogout()">退出登录</button>
@@ -298,12 +347,13 @@
                 <span class="status-dot"></span> 在线
             </div>
             <div class="emotion-label" id="emotionLabel">微笑</div>
+            <div class="model-info" id="modelInfo">当前模型：豆包 AI</div>
         </div>
 
         <div class="chat-area">
             <div class="message-list" id="messageList"></div>
             <div class="input-area">
-                <input type="text" id="userInput" placeholder="输入您的问题，如：迎客松在哪里？" onkeydown="if(event.key==='Enter') sendMessage()">
+                <input type="text" id="userInput" placeholder="输入您的问题，如：灵山大佛有多高？" onkeydown="if(event.key==='Enter') sendMessage()">
                 <button class="btn-send" id="sendBtn" onclick="sendMessage()">发 送</button>
             </div>
         </div>
@@ -332,13 +382,22 @@
             'explain': '🗣️'
         };
 
+        const modelNames = {
+            'doubao': '豆包 AI',
+            'openai': 'GPT-3.5',
+            'gpt4': 'GPT-4',
+            'deepseek': 'DeepSeek',
+            'qwen': '通义千问',
+            'local': '本地模型'
+        };
+
         function checkAuth() {
             if (!accessToken || !username) {
                 window.location.href = '/api/login-page/';
                 return;
             }
             document.getElementById('displayName').textContent = username;
-            checkIfAdmin();  // ← 加这一行
+            checkIfAdmin();
         }
 
         function handleLogout() {
@@ -355,13 +414,20 @@
             });
         }
 
-        function addMessage(role, text) {
+        function addMessage(role, text, modelUsed = null) {
             const list = document.getElementById('messageList');
             const item = document.createElement('div');
             item.className = 'message-item ' + role;
+            
+            // 如果是 AI 回复且有模型信息，显示小字
+            const modelTag = (role === 'ai' && modelUsed) ? `<div style="font-size: 10px; color: #667eea; margin-top: 4px;">🤖 ${modelNames[modelUsed] || modelUsed}</div>` : '';
+            
             item.innerHTML = `
                 <div class="message-avatar">${role === 'ai' ? '🧑‍💼' : '👤'}</div>
-                <div class="message-bubble">${text}</div>
+                <div class="message-bubble">
+                    ${text}
+                    ${modelTag}
+                </div>
             `;
             list.appendChild(item);
             list.scrollTop = list.scrollHeight;
@@ -395,6 +461,10 @@
             const statusEl = document.getElementById('avatarStatus');
             statusEl.innerHTML = '<span class="status-dot"></span> 思考中...';
 
+            // 获取选择的模型
+            const modelType = document.getElementById('modelSelect').value;
+            document.getElementById('modelInfo').textContent = `当前模型：${modelNames[modelType] || modelType}`;
+
             try {
                 const response = await fetch(API_BASE + '/chat/', {
                     method: 'POST',
@@ -404,7 +474,8 @@
                     },
                     body: JSON.stringify({
                         message: message,
-                        session_id: sessionId
+                        session_id: sessionId,
+                        model_type: modelType  // 传递模型类型
                     })
                 });
 
@@ -422,8 +493,13 @@
 
                 const result = await response.json();
                 if (result.code === 200) {
-                    addMessage('ai', result.data.response_text);
+                    addMessage('ai', result.data.response_text, result.data.model_used);
                     updateDigitalHuman(result.data.emotion, result.data.action);
+                    
+                    // 可选：显示使用了多少条知识
+                    if (result.data.used_knowledge !== undefined) {
+                        console.log(`使用了 ${result.data.used_knowledge} 条知识库内容`);
+                    }
                 } else {
                     addMessage('ai', '抱歉，我暂时无法回答这个问题。');
                 }
@@ -455,27 +531,35 @@
             }
             return false;
         }
-		function goToImport() {
-		    const token = localStorage.getItem('access_token');
-		    window.location.href = '/api/upload-word/?token=' + token;
-		}
-		
-		async function checkIfAdmin() {
-		    try {
-		        const response = await fetch(API_BASE + '/user-info/', {
-		            method: 'GET',
-		            headers: {
-		                'Authorization': 'Bearer ' + accessToken
-		            }
-		        });
-		        const result = await response.json();
-		        if (result.code === 200 && result.data.username === 'admin') {
-		            document.getElementById('btnImport').style.display = 'inline-block';
-		        }
-		    } catch (e) {
-		        console.error('获取用户信息失败', e);
-		    }
-		}
+        
+        function goToImport() {
+            const token = localStorage.getItem('access_token');
+            window.location.href = '/api/upload-word/?token=' + token;
+        }
+        
+        async function checkIfAdmin() {
+            try {
+                const response = await fetch(API_BASE + '/user-info/', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Bearer ' + accessToken
+                    }
+                });
+                const result = await response.json();
+                if (result.code === 200 && result.data.username === 'admin') {
+                    document.getElementById('btnImport').style.display = 'inline-block';
+                }
+            } catch (e) {
+                console.error('获取用户信息失败', e);
+            }
+        }
+        
+        // 监听模型切换，更新显示
+        document.getElementById('modelSelect').addEventListener('change', function() {
+            const modelType = this.value;
+            document.getElementById('modelInfo').textContent = `当前模型：${modelNames[modelType] || modelType}`;
+        });
+        
         checkAuth();
     </script>
 
