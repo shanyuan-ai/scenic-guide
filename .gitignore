@@ -15,4 +15,10 @@ db.sqlite3
 
 # IDE 配置
 .vscode/
-.idea/"data/" 
+.idea/
+
+# 本地模型权重（体积很大）
+models/
+
+# 上传临时目录
+temp/

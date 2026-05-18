@@ -51,16 +51,6 @@
     <script>
         const API_BASE = 'http://127.0.0.1:8000/api';
 
-        function getToken() {
-            const params = new URLSearchParams(window.location.search);
-            const urlToken = params.get('token');
-            if (urlToken) {
-                localStorage.setItem('access_token', urlToken);
-                return urlToken;
-            }
-            return localStorage.getItem('access_token');
-        }
-
         function showMessage(msg, type) {
             const box = document.getElementById('messageBox');
             box.textContent = msg;
@@ -70,16 +60,9 @@
         async function uploadFile() {
             const fileInput = document.getElementById('fileInput');
             const file = fileInput.files[0];
-            const token = getToken();
 
             if (!file) {
                 showMessage('请先选择文件', 'error');
-                return;
-            }
-
-            if (!token) {
-                showMessage('请先登录', 'error');
-                window.location.href = '/api/login-page/';
                 return;
             }
 
@@ -91,7 +74,7 @@
             formData.append('file', file);
 
             try {
-                const response = await fetch(API_BASE + '/upload-word/?token=' + token, {
+                const response = await fetch(API_BASE + '/upload-word/', {
                     method: 'POST',
                     body: formData
                 });
@@ -100,9 +83,6 @@
 
                 if (response.ok && result.code === 200) {
                     showMessage(result.message, 'success');
-                } else if (response.status === 401) {
-                    showMessage('登录已过期，请重新登录', 'error');
-                    setTimeout(() => window.location.href = '/api/login-page/', 1500);
                 } else {
                     showMessage(result.message || '上传失败', 'error');
                 }

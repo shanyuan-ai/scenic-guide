@@ -20,7 +20,7 @@ def import_from_word(filepath):
         content = paragraphs[i + 1] if i + 1 < len(paragraphs) else ""
         KnowledgeItem.objects.get_or_create(
             title=title,
-            defaults={'content': content, 'category': 'faq'}
+            defaults={'content': content, 'category': 'faq', 'is_indexed': True}
         )
         count += 1
     return count

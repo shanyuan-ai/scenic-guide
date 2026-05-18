@@ -334,8 +334,8 @@
                 </select>
             </div>
             <div>
-                <button class="btn-import" id="btnImport" onclick="goToImport()" style="display:none;">📄 导入文档</button>
-                <button class="btn-logout" onclick="handleLogout()">退出登录</button>
+                <button class="btn-import" id="btnImport" onclick="goToImport()">📄 导入文档</button>
+                <button class="btn-import" id="btnRagAdmin" onclick="goToRagAdmin()">🧪 RAG 管理台</button>
             </div>
         </div>
 
@@ -361,9 +361,10 @@
 
     <script>
         const API_BASE = 'http://127.0.0.1:8000/api';
-        let accessToken = localStorage.getItem('access_token');
-        let refreshToken = localStorage.getItem('refresh_token');
-        let username = localStorage.getItem('username');
+        // Development mode: no login/token required.
+        let accessToken = null;
+        let refreshToken = null;
+        let username = '游客';
         let sessionId = 'session_' + Date.now();
 
         const emotionMap = {
@@ -391,27 +392,8 @@
             'local': '本地模型'
         };
 
-        function checkAuth() {
-            if (!accessToken || !username) {
-                window.location.href = '/api/login-page/';
-                return;
-            }
+        function initUser() {
             document.getElementById('displayName').textContent = username;
-            checkIfAdmin();
-        }
-
-        function handleLogout() {
-            fetch(API_BASE + '/logout/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + accessToken
-                },
-                body: JSON.stringify({ refresh: refreshToken })
-            }).finally(() => {
-                localStorage.clear();
-                window.location.href = '/api/login-page/';
-            });
         }
 
         function addMessage(role, text, modelUsed = null) {
@@ -469,8 +451,7 @@
                 const response = await fetch(API_BASE + '/chat/', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + accessToken
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
                         message: message,
@@ -478,18 +459,6 @@
                         model_type: modelType  // 传递模型类型
                     })
                 });
-
-                if (response.status === 401) {
-                    const refreshed = await refreshAccessToken();
-                    if (refreshed) {
-                        btn.disabled = false;
-                        btn.textContent = '发 送';
-                        return sendMessage();
-                    } else {
-                        window.location.href = '/api/login-page/';
-                        return;
-                    }
-                }
 
                 const result = await response.json();
                 if (result.code === 200) {
@@ -513,46 +482,17 @@
             }
         }
 
-        async function refreshAccessToken() {
-            try {
-                const response = await fetch(API_BASE + '/refresh/', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ refresh: refreshToken })
-                });
-                const result = await response.json();
-                if (result.code === 200) {
-                    accessToken = result.data.access;
-                    localStorage.setItem('access_token', accessToken);
-                    return true;
-                }
-            } catch (e) {
-                console.error('Token 刷新失败', e);
-            }
-            return false;
-        }
+        async function refreshAccessToken() { return false; }
         
         function goToImport() {
-            const token = localStorage.getItem('access_token');
-            window.location.href = '/api/upload-word/?token=' + token;
+            window.location.href = '/api/upload-word/';
+        }
+
+        function goToRagAdmin() {
+            window.location.href = '/api/rag-admin-page/';
         }
         
-        async function checkIfAdmin() {
-            try {
-                const response = await fetch(API_BASE + '/user-info/', {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': 'Bearer ' + accessToken
-                    }
-                });
-                const result = await response.json();
-                if (result.code === 200 && result.data.username === 'admin') {
-                    document.getElementById('btnImport').style.display = 'inline-block';
-                }
-            } catch (e) {
-                console.error('获取用户信息失败', e);
-            }
-        }
+        async function checkIfAdmin() { return; }
         
         // 监听模型切换，更新显示
         document.getElementById('modelSelect').addEventListener('change', function() {
@@ -560,7 +500,7 @@
             document.getElementById('modelInfo').textContent = `当前模型：${modelNames[modelType] || modelType}`;
         });
         
-        checkAuth();
+        initUser();
     </script>
 
 </body>
