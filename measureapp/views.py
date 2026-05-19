@@ -1,11 +1,12 @@
 # measureapp/views.py
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import viewsets, status
 from django.db.models import Count, Avg
 from django.utils import timezone
 from django.db.models import Q
+
 
 from .models import KnowledgeItem, ConversationLog
 from .serializers import KnowledgeItemSerializer
@@ -21,13 +22,117 @@ from django.conf import settings
 
 
 class KnowledgeItemViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     queryset = KnowledgeItem.objects.all().order_by('-created_at')
     serializer_class = KnowledgeItemSerializer
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        is_indexed = self.request.query_params.get('is_indexed')
+        if is_indexed is not None:
+            if str(is_indexed).lower() in {'1', 'true', 'yes', 'on'}:
+                qs = qs.filter(is_indexed=True)
+            elif str(is_indexed).lower() in {'0', 'false', 'no', 'off'}:
+                qs = qs.filter(is_indexed=False)
+
+        q = (self.request.query_params.get('q') or '').strip()
+        if q:
+            qs = qs.filter(Q(title__icontains=q) | Q(content__icontains=q))
+
+        category = (self.request.query_params.get('category') or '').strip()
+        if category:
+            qs = qs.filter(category=category)
+        return qs
+
+
+class RagIndexStatusView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        total = KnowledgeItem.objects.count()
+        indexed = KnowledgeItem.objects.filter(is_indexed=True).count()
+        unindexed = total - indexed
+
+        category_counts = list(
+            KnowledgeItem.objects.values('category').annotate(count=Count('id')).order_by('-count')
+        )
+        indexed_category_counts = list(
+            KnowledgeItem.objects.filter(is_indexed=True).values('category').annotate(count=Count('id')).order_by('-count')
+        )
+        unindexed_category_counts = list(
+            KnowledgeItem.objects.filter(is_indexed=False).values('category').annotate(count=Count('id')).order_by('-count')
+        )
+
+        return Response({
+            'code': 200,
+            'data': {
+                'total': total,
+                'indexed': indexed,
+                'unindexed': unindexed,
+                'vector_index': {
+                    'index_ready': getattr(vector_service, '_index_ready', False),
+                    'dirty': getattr(vector_service, '_dirty', False),
+                    # In-memory index doc count (embeddings built) may lag behind DB.
+                    'indexed_doc_count': len(getattr(vector_service, 'documents', []) or []),
+                    'indexed_db_count': indexed,
+                    'embeddings_ready': getattr(vector_service, 'embeddings', None) is not None,
+                    'model_error': getattr(vector_service, 'model_error', None),
+                },
+                'category_counts': category_counts,
+                'indexed_category_counts': indexed_category_counts,
+                'unindexed_category_counts': unindexed_category_counts,
+            },
+            'message': 'success'
+        })
+
+
+class RagSearchView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        query = (request.query_params.get('query') or '').strip()
+        top_k = int(request.query_params.get('top_k') or 5)
+        if not query:
+            return Response({'code': 400, 'message': 'query 不能为空', 'data': None}, status=status.HTTP_400_BAD_REQUEST)
+
+        results = vector_service.search(query, top_k=top_k)
+        return Response({'code': 200, 'data': results, 'message': 'success'})
+
+
+class RagReindexView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        count = vector_service.sync_all_knowledge()
+        return Response({'code': 200, 'data': {'indexed_doc_count': count}, 'message': 'success'})
+
+
+class RagSetIndexedView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        ids = request.data.get('ids') or []
+        is_indexed = request.data.get('is_indexed')
+
+        if not isinstance(ids, list) or not ids:
+            return Response({'code': 400, 'message': 'ids 必须是非空数组', 'data': None}, status=status.HTTP_400_BAD_REQUEST)
+        if not isinstance(is_indexed, bool):
+            return Response({'code': 400, 'message': 'is_indexed 必须是布尔值', 'data': None}, status=status.HTTP_400_BAD_REQUEST)
+
+        updated = KnowledgeItem.objects.filter(id__in=ids).update(is_indexed=is_indexed)
+        indexed_doc_count = vector_service.sync_all_knowledge()
+        return Response({
+            'code': 200,
+            'data': {
+                'updated': updated,
+                'indexed_doc_count': indexed_doc_count,
+            },
+            'message': 'success'
+        })
+
 
 class ChatView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def post(self, request):
         user_input = request.data.get('message', '')
@@ -41,9 +146,11 @@ class ChatView(APIView):
                 'message': '消息内容不能为空'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-
-        retrieved_docs = vector_service.search(user_input, top_k=5)
-
+        try:
+            retrieved_docs = vector_service.search(user_input, top_k=5)
+        except Exception as e:
+            print(f"向量检索异常: {e}")
+            retrieved_docs = []
 
         context_parts = []
         sources = []
@@ -66,17 +173,23 @@ class ChatView(APIView):
             context = "暂无相关知识"
             print("=== 向量检索未找到相关知识 ===")
 
-
-        ai_answer = call_ai_model(user_input, context=context, model_type=model_type)
+        try:
+            ai_answer = call_ai_model(user_input, context=context, model_type=model_type)
+        except Exception as e:
+            print(f"AI 模型调用异常: {e}")
+            ai_answer = "抱歉，AI 服务暂时繁忙，请稍后再试。"
 
         sentiment_score = analyze_sentiment(user_input)
 
-        ConversationLog.objects.create(
-            session_id=session_id,
-            user_input=user_input,
-            ai_response=ai_answer,
-            sentiment_score=sentiment_score
-        )
+        try:
+            ConversationLog.objects.create(
+                session_id=session_id,
+                user_input=user_input,
+                ai_response=ai_answer,
+                sentiment_score=sentiment_score
+            )
+        except Exception as e:
+            print(f"对话日志写入异常: {e}")
 
         if sentiment_score >= 0.7:
             emotion = 'smile'
@@ -93,12 +206,12 @@ class ChatView(APIView):
                 'action': 'explain',
                 'used_knowledge': len(retrieved_docs),
                 'model_used': model_type,
-                'sources': sources  # 新增：告诉前端答案来源
+                'sources': sources
             },
             'message': 'success'
         })
 class DashboardView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def get(self, request):
         today = timezone.now().date()
@@ -142,24 +255,6 @@ class WordUploadView(APIView):
         return render(request, 'admin/upload_word.html', {'form': form})
 
     def post(self, request):
-        # JWT 验证
-        token = request.query_params.get('token') or request.headers.get('Authorization', '').replace('Bearer ', '')
-
-        if not token:
-            return Response({
-                'code': 401,
-                'message': '身份认证信息未提供。'
-            }, status=status.HTTP_401_UNAUTHORIZED)
-
-        try:
-            from rest_framework_simplejwt.tokens import AccessToken
-            AccessToken(token)
-        except Exception:
-            return Response({
-                'code': 401,
-                'message': 'Token 无效或已过期。'
-            }, status=status.HTTP_401_UNAUTHORIZED)
-
         form = WordUploadForm(request.POST, request.FILES)
         if form.is_valid():
             uploaded_file = request.FILES['file']

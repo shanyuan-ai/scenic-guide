@@ -14,13 +14,19 @@ def parse_word_file(file_path, default_category='faq'):
         title = paragraphs[i]
         content = paragraphs[i + 1] if i + 1 < len(paragraphs) else ''
 
-        KnowledgeItem.objects.update_or_create(
+        item, created = KnowledgeItem.objects.get_or_create(
             title=title,
             defaults={
                 'content': content,
-                'category': default_category
+                'category': default_category,
+                'is_indexed': True,
             }
         )
+        if not created:
+            # Keep existing is_indexed state; only refresh content/category.
+            item.content = content
+            item.category = default_category
+            item.save(update_fields=['content', 'category'])
         count += 1
 
     return count

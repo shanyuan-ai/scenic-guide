@@ -21,6 +21,10 @@ class KnowledgeItem(models.Model):
         null=True,
         verbose_name='向量字段(预留)'
     )
+    is_indexed = models.BooleanField(
+        default=False,
+        verbose_name='是否入索引'
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
 
     class Meta:
@@ -73,19 +77,16 @@ class DailyStat(models.Model):
     def __str__(self):
         return str(self.date)
 
-    @receiver(post_save, sender=KnowledgeItem)
-    def sync_knowledge_on_save(sender, instance, created, **kwargs):
-        """保存知识条目时自动同步到向量库"""
-        from .vector_service import vector_service
-        vector_service.add_knowledge_item(
-            instance.id,
-            instance.title,
-            instance.content,
-            instance.category
-        )
 
-    @receiver(post_delete, sender=KnowledgeItem)
-    def delete_knowledge_on_delete(sender, instance, **kwargs):
-        """删除知识条目时从向量库移除"""
-        from .vector_service import vector_service
-        vector_service.collection.delete(ids=[str(instance.id)])
+@receiver(post_save, sender=KnowledgeItem)
+def sync_knowledge_on_save(sender, instance, created, **kwargs):
+    """保存知识条目时自动同步到检索索引"""
+    from .vector_service import vector_service
+    vector_service.add_knowledge_item(instance)
+
+
+@receiver(post_delete, sender=KnowledgeItem)
+def delete_knowledge_on_delete(sender, instance, **kwargs):
+    """删除知识条目时自动同步到检索索引"""
+    from .vector_service import vector_service
+    vector_service.delete_knowledge_item(instance)
