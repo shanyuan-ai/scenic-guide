@@ -58,7 +58,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'measurePrj.wsgi.application'
 
-# Database - 保留师哥的 SQLite/MySQL 切换逻辑
 USE_SQLITE = os.getenv('USE_SQLITE', '1').lower() in {'1', 'true', 'yes', 'on'}
 
 if USE_SQLITE:
@@ -85,7 +84,6 @@ else:
         }
     }
 
-# 你的缓存配置
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
@@ -109,13 +107,11 @@ USE_TZ = True
 STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# 保留师哥的 REST_FRAMEWORK 配置
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [],
     'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.AllowAny'],
 }
 
-# 你的 JWT 配置
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(hours=2),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),

@@ -23,7 +23,6 @@ from .forms import WordUploadForm
 from .word_importer import parse_word_file
 
 
-# ==================== 知识库 CRUD ====================
 class KnowledgeItemViewSet(viewsets.ModelViewSet):
     permission_classes = [AllowAny]
     queryset = KnowledgeItem.objects.all().order_by('-created_at')
@@ -48,7 +47,6 @@ class KnowledgeItemViewSet(viewsets.ModelViewSet):
         return qs
 
 
-# ==================== RAG 索引状态管理（师哥的功能） ====================
 class RagIndexStatusView(APIView):
     permission_classes = [AllowAny]
 
@@ -134,7 +132,6 @@ class RagSetIndexedView(APIView):
         })
 
 
-# ==================== 游客对话接口（你的缓存功能） ====================
 class ChatView(APIView):
     permission_classes = [AllowAny]
 
@@ -150,7 +147,6 @@ class ChatView(APIView):
                 'message': '消息内容不能为空'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # ==================== 缓存查询 ====================
         cache_key = f"ai_answer_{hashlib.md5(user_input.encode()).hexdigest()}"
         cached_response = cache.get(cache_key)
 
@@ -158,7 +154,6 @@ class ChatView(APIView):
             print(f"=== 缓存命中，直接返回 ===")
             return Response(cached_response)
 
-        # ==================== 向量检索 ====================
         start_search = time.time()
         try:
             retrieved_docs = vector_service.search(user_input, top_k=5)
@@ -189,7 +184,6 @@ class ChatView(APIView):
             context = "暂无相关知识"
             print("=== 向量检索未找到相关知识 ===")
 
-        # ==================== 调用大模型 ====================
         start_llm = time.time()
         try:
             ai_answer = call_ai_model(user_input, context=context, model_type=model_type)
@@ -199,10 +193,8 @@ class ChatView(APIView):
         llm_time = time.time() - start_llm
         print(f"豆包大模型耗时: {llm_time:.3f} 秒")
 
-        # ==================== 情感分析 ====================
         sentiment_score = analyze_sentiment(user_input)
 
-        # ==================== 保存对话记录 ====================
         try:
             ConversationLog.objects.create(
                 session_id=session_id,
@@ -213,7 +205,6 @@ class ChatView(APIView):
         except Exception as e:
             print(f"对话日志写入异常: {e}")
 
-        # ==================== 根据情感得分选择表情 ====================
         if sentiment_score >= 0.7:
             emotion = 'smile'
         elif sentiment_score >= 0.4:
@@ -221,7 +212,6 @@ class ChatView(APIView):
         else:
             emotion = 'sad'
 
-        # ==================== 构建响应并缓存 ====================
         response_data = {
             'code': 200,
             'data': {
@@ -244,7 +234,6 @@ class ChatView(APIView):
         return Response(response_data)
 
 
-# ==================== 数据大屏接口 ====================
 class DashboardView(APIView):
     permission_classes = [AllowAny]
 
@@ -281,7 +270,6 @@ class DashboardView(APIView):
         })
 
 
-# ==================== Word 上传导入接口 ====================
 class WordUploadView(APIView):
     permission_classes = [AllowAny]
 
