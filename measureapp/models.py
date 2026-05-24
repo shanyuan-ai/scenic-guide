@@ -2,6 +2,7 @@ from django.db import models
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 
+
 class KnowledgeItem(models.Model):
     CATEGORY_CHOICES = [
         ('history', '历史典故'),
@@ -9,7 +10,7 @@ class KnowledgeItem(models.Model):
         ('faq', '常见问题'),
         ('route', '路线推荐'),
     ]
-    title = models.CharField(max_length=200, verbose_name='标题')
+    title = models.CharField(max_length=200, verbose_name='标题', db_index=True)
     content = models.TextField(verbose_name='内容')
     category = models.CharField(
         max_length=20,
