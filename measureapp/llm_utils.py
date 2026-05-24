@@ -3,7 +3,6 @@ from volcenginesdkarkruntime import Ark
 from django.conf import settings
 import os
 import requests
-import json
 
 
 class BaseAI:
@@ -15,8 +14,6 @@ class BaseAI:
 
 
 class DoubaoAI(BaseAI):
-    """豆包 AI"""
-
     def __init__(self):
         super().__init__()
         self.client = Ark(api_key=settings.DOUBAO_API_KEY)
@@ -24,7 +21,6 @@ class DoubaoAI(BaseAI):
         self.max_tokens = settings.DOUBAO_MAX_TOKENS
 
     def chat(self, user_input, context):
-
         system_prompt = self.system_prompt
         if context:
             system_prompt += f"\n\n参考资料：\n{context}\n请根据参考资料回答用户问题。"
@@ -42,13 +38,10 @@ class DoubaoAI(BaseAI):
             )
             return completion.choices[0].message.content
         except Exception as e:
-            print(f"豆包 API 错误: {e}")
             return "抱歉，AI 服务暂时不可用，请稍后再试。"
 
 
 class OpenAICompatibleAI(BaseAI):
-    """OpenAI 兼容接口"""
-
     def __init__(self, api_key=None, base_url=None, model=None):
         super().__init__()
         self.api_key = api_key or os.getenv('OPENAI_API_KEY')
@@ -83,14 +76,11 @@ class OpenAICompatibleAI(BaseAI):
             )
             result = response.json()
             return result['choices'][0]['message']['content']
-        except Exception as e:
-            print(f"OpenAI API 错误: {e}")
+        except Exception:
             return "抱歉，AI 服务暂时不可用。"
 
 
 class LocalOllamaAI(BaseAI):
-    """本地 Ollama 模型"""
-
     def __init__(self, base_url="http://localhost:11434", model="qwen:7b"):
         super().__init__()
         self.base_url = base_url
@@ -101,7 +91,6 @@ class LocalOllamaAI(BaseAI):
         if context:
             system_prompt += f"\n\n参考资料：\n{context}\n请根据参考资料回答用户问题。"
 
-        # Ollama 的 API 格式
         full_prompt = f"{system_prompt}\n\n用户：{user_input}\n助手："
 
         try:
@@ -115,16 +104,11 @@ class LocalOllamaAI(BaseAI):
                 timeout=30
             )
             return response.json()['response']
-        except Exception as e:
-            print(f"Ollama 错误: {e}")
+        except Exception:
             return "本地模型未启动，请检查 Ollama 服务。"
 
 
 def call_ai_model(user_input, context="", model_type="doubao"):
-    """
-    统一的 AI 调用接口
-    model_type: doubao, openai, gpt4, deepseek, qwen, local
-    """
     models = {
         'doubao': DoubaoAI,
         'openai': lambda: OpenAICompatibleAI(model='gpt-3.5-turbo'),
@@ -144,9 +128,7 @@ def call_ai_model(user_input, context="", model_type="doubao"):
 
     if model_type not in models:
         model_type = 'doubao'
-        print(f"警告: 不支持的模型类型 '{model_type}'，使用默认豆包模型")
 
-    # 支持 lambda 和普通类
     ai_instance = models[model_type]
     if callable(ai_instance) and not isinstance(ai_instance, type):
         ai_instance = ai_instance()
@@ -156,6 +138,5 @@ def call_ai_model(user_input, context="", model_type="doubao"):
     return ai_instance.chat(user_input, context)
 
 
-# 保留原函数，向后兼容
 def call_doubao(user_input, context=""):
     return call_ai_model(user_input, context, "doubao")

@@ -11,8 +11,6 @@ from .models import KnowledgeItem
 
 class VectorService:
     def __init__(self):
-        print("正在初始化 BGE-M3 景区知识检索系统...")
-
         self.scenic_entities = {
             '景点': ['灵山大佛', '九龙灌浴', '梵宫', '五印坛城', '祥符禅寺', '佛手广场', '曼飞龙塔', '灵山精舍'],
             '活动': ['抱佛脚', '摸佛掌', '撞钟', '转经筒', '祈福'],
@@ -88,20 +86,11 @@ class VectorService:
     def _load_embedding_model(self):
         if self.embedding_model is not None:
             return
-        try:
-            import torch
-            from transformers import AutoModel, AutoTokenizer
-        except Exception as exc:
-            raise RuntimeError(f"缺少 transformers/torch 依赖，无法加载 BGE-M3：{exc}")
+        import torch
+        from transformers import AutoModel, AutoTokenizer
 
         self.device = self._resolve_device(torch)
         torch_dtype = self._resolve_torch_dtype(torch)
-
-        if not self._model_path_exists(self.embedding_model_name):
-            raise RuntimeError(
-                f"embedding 模型路径不存在且未启用在线下载：{self.embedding_model_name}。"
-                f"请先运行 download_model.py，或设置 RAG_ALLOW_REMOTE_DOWNLOAD=1"
-            )
 
         self.embedding_tokenizer = AutoTokenizer.from_pretrained(self.embedding_model_name, trust_remote_code=True)
         self.embedding_model = AutoModel.from_pretrained(
@@ -115,22 +104,13 @@ class VectorService:
     def _load_reranker(self):
         if self.reranker is not None:
             return
-        try:
-            import torch
-            from transformers import AutoModelForSequenceClassification, AutoTokenizer
-        except Exception as exc:
-            raise RuntimeError(f"缺少 transformers/torch 依赖，无法加载 reranker：{exc}")
+        import torch
+        from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
         if self.device is None:
             self.device = self._resolve_device(torch)
 
         torch_dtype = self._resolve_torch_dtype(torch)
-
-        if not self._model_path_exists(self.reranker_model_name):
-            raise RuntimeError(
-                f"reranker 模型路径不存在且未启用在线下载：{self.reranker_model_name}。"
-                f"请先运行 download_model.py，或设置 RAG_ALLOW_REMOTE_DOWNLOAD=1"
-            )
 
         self.reranker_tokenizer = AutoTokenizer.from_pretrained(self.reranker_model_name, trust_remote_code=True)
         self.reranker = AutoModelForSequenceClassification.from_pretrained(
@@ -151,18 +131,6 @@ class VectorService:
         if str(self.device).startswith('cuda') and self.use_fp16:
             return torch_module.float16
         return None
-
-    def _model_path_exists(self, model_name_or_path):
-        allow_remote = self._get_bool_setting('RAG_ALLOW_REMOTE_DOWNLOAD', False)
-        if allow_remote:
-            return True
-        # If it's not a local path, force an explicit opt-in to avoid long downloads in dev.
-        if model_name_or_path.startswith('http://') or model_name_or_path.startswith('https://'):
-            return False
-        if os.path.isdir(model_name_or_path):
-            return True
-        # HuggingFace repo id pattern: contains '/'
-        return False
 
     def _normalize_vectors(self, vectors):
         norms = np.linalg.norm(vectors, axis=1, keepdims=True)
@@ -262,13 +230,11 @@ class VectorService:
             self.sync_all_knowledge()
 
     def sync_all_knowledge(self):
-        print("正在构建 BGE-M3 景区知识索引...")
         try:
             self.knowledge_items = list(KnowledgeItem.objects.filter(is_indexed=True))
         except Exception as exc:
             self.model_error = str(exc)
             self._index_ready = False
-            print(f"知识库读取失败，暂时无法构建索引：{exc}")
             return 0
 
         self.documents = [self._build_document_text(item) for item in self.knowledge_items]
@@ -277,28 +243,21 @@ class VectorService:
         self._dirty = False
 
         if not self.documents:
-            print("知识库为空，跳过索引")
             return 0
 
         try:
             self.embeddings = self._encode_texts(self.documents)
             self.model_error = None
-            print(f"BGE-M3 索引完成，共 {len(self.documents)} 条知识")
         except Exception as exc:
             self.model_error = str(exc)
-            print(f"BGE-M3 索引构建失败，将使用关键词兜底：{exc}")
 
         return len(self.documents)
 
-    def add_knowledge_item(self, instance=None, *args, **kwargs):
-        # Any change could affect the indexed corpus (content update, or indexed flag toggled).
+    def add_knowledge_item(self, instance=None):
         self._dirty = True
-        return 0
 
-    def delete_knowledge_item(self, instance=None, *args, **kwargs):
-        # Deletions may shrink the corpus.
+    def delete_knowledge_item(self, instance=None):
         self._dirty = True
-        return 0
 
     def search(self, query, top_k=5):
         query = (query or '').strip()
@@ -326,7 +285,6 @@ class VectorService:
             results = self._dense_search(query, top_k)
         except Exception as exc:
             self.model_error = str(exc)
-            print(f"BGE-M3 检索失败，将使用关键词兜底：{exc}")
             results = []
 
         if results:
@@ -364,15 +322,9 @@ class VectorService:
             self._load_reranker()
             pairs = [[query, self.documents[index]] for index, _ in candidates]
             rerank_scores = self._compute_rerank_scores(pairs)
-        except Exception as exc:
-            print(f"bge-reranker-v2-m3 重排失败，将使用 BGE-M3 召回分排序：{exc}")
+        except Exception:
             return [
-                self._format_result(
-                    index,
-                    score=retrieval_score,
-                    source_type='bge_m3',
-                    retrieval_score=retrieval_score,
-                )
+                self._format_result(index, score=retrieval_score, source_type='bge_m3', retrieval_score=retrieval_score)
                 for index, retrieval_score in candidates[:top_k]
             ]
 
@@ -382,13 +334,7 @@ class VectorService:
             reverse=True,
         )
         return [
-            self._format_result(
-                index,
-                score=rerank_score,
-                source_type='bge_m3_reranker',
-                retrieval_score=retrieval_score,
-                rerank_score=rerank_score,
-            )
+            self._format_result(index, score=rerank_score, source_type='bge_m3_reranker', retrieval_score=retrieval_score, rerank_score=rerank_score)
             for (index, retrieval_score), rerank_score in reranked[:top_k]
         ]
 

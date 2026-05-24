@@ -12,20 +12,8 @@ class KnowledgeItem(models.Model):
     ]
     title = models.CharField(max_length=200, verbose_name='标题', db_index=True)
     content = models.TextField(verbose_name='内容')
-    category = models.CharField(
-        max_length=20,
-        choices=CATEGORY_CHOICES,
-        verbose_name='分类'
-    )
-    embedding_vector = models.TextField(
-        blank=True,
-        null=True,
-        verbose_name='向量字段(预留)'
-    )
-    is_indexed = models.BooleanField(
-        default=False,
-        verbose_name='是否入索引'
-    )
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, verbose_name='分类')
+    is_indexed = models.BooleanField(default=False, verbose_name='是否入索引')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
 
     class Meta:
@@ -34,20 +22,6 @@ class KnowledgeItem(models.Model):
 
     def __str__(self):
         return self.title
-
-
-class DigitalHumanProfile(models.Model):
-    name = models.CharField(max_length=50, verbose_name='形象名称')
-    avatar_url = models.URLField(verbose_name='形象地址')
-    voice_id = models.CharField(max_length=50, verbose_name='音色ID')
-    welcome_text = models.TextField(verbose_name='欢迎语')
-
-    class Meta:
-        verbose_name = '数字人形象'
-        verbose_name_plural = verbose_name
-
-    def __str__(self):
-        return self.name
 
 
 class ConversationLog(models.Model):
@@ -65,29 +39,13 @@ class ConversationLog(models.Model):
         return f'{self.session_id} - {self.created_at}'
 
 
-class DailyStat(models.Model):
-    date = models.DateField(unique=True, verbose_name='日期')
-    visitor_count = models.IntegerField(default=0, verbose_name='服务人次')
-    avg_sentiment = models.FloatField(default=0.0, verbose_name='平均满意度')
-    top_question = models.JSONField(default=list, verbose_name='热门问答')
-
-    class Meta:
-        verbose_name = '每日统计'
-        verbose_name_plural = verbose_name
-
-    def __str__(self):
-        return str(self.date)
-
-
 @receiver(post_save, sender=KnowledgeItem)
 def sync_knowledge_on_save(sender, instance, created, **kwargs):
-    """保存知识条目时自动同步到检索索引"""
     from .vector_service import vector_service
     vector_service.add_knowledge_item(instance)
 
 
 @receiver(post_delete, sender=KnowledgeItem)
 def delete_knowledge_on_delete(sender, instance, **kwargs):
-    """删除知识条目时自动同步到检索索引"""
     from .vector_service import vector_service
     vector_service.delete_knowledge_item(instance)
