@@ -22,3 +22,9 @@ models/
 
 # 上传临时目录
 temp/
+
+# 上传目录(反馈图片等)
+uploads/
+
+# Node.js 依赖
+**/node_modules/
