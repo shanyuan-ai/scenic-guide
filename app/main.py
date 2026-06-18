@@ -4,17 +4,25 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.common.db import init_db
+from app import config
+from app.common.db import init_db, migrate_feedback_table
 from app.tools import registry  # 自动发现+注册所有工具
+from app.tools.rag.vector_service import vector_service
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """启动时初始化数据库。"""
+    """启动时初始化数据库并执行迁移。"""
     import sys
     print("DEBUG_STARTUP_EXECUTABLE:", sys.executable)
     print("DEBUG_STARTUP_ARGV:", sys.argv)
     init_db()
+    migrate_feedback_table()
+    if config.RAG_PREWARM_ON_STARTUP:
+        try:
+            vector_service.ensure_index()
+        except Exception as exc:
+            print(f"DEBUG_RAG_PREWARM_FAILED: {exc}")
     yield
 
 
@@ -113,4 +121,3 @@ def restart_server():
 
     threading.Thread(target=reload_backend).start()
     return {'status': 'restarting', 'message': '后端服务正在独立重启中，约 2 秒后连接恢复...'}
-

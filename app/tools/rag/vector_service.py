@@ -1,5 +1,5 @@
 # app/tools/rag/vector_service.py
-"""核心 RAG 检索服务:BGE-M3 密集检索 + bge-reranker-v2-m3 交叉编码重排。
+"""核心 RAG 检索服务:BGE-M3 密集检索，可选 bge-reranker-v2-m3 交叉编码重排。
 
 检索逻辑(向量召回、重排、关键词兜底、热词缓存、实体增强)保持不变,
 仅调整了 import 路径以适配新的 tools/ 目录结构。
@@ -38,6 +38,7 @@ class VectorService:
         self.max_length = config.RAG_MAX_LENGTH
         self.retrieval_top_k = config.RAG_RETRIEVAL_TOP_K
         self.min_retrieval_score = config.RAG_RETRIEVAL_MIN_SCORE
+        self.enable_reranker = config.RAG_ENABLE_RERANKER
 
         self.embedding_model = None
         self.embedding_tokenizer = None
@@ -317,6 +318,12 @@ class VectorService:
 
         if not candidates:
             return []
+
+        if not self.enable_reranker:
+            return [
+                self._format_result(index, score=retrieval_score, source_type='bge_m3', retrieval_score=retrieval_score)
+                for index, retrieval_score in candidates[:top_k]
+            ]
 
         return self._rerank_results(query, candidates, top_k)
 

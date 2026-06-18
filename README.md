@@ -138,6 +138,14 @@ app/
 压测结果（5 并发，CPU 推理）：成功率 100%，平均延迟 0.43s，吞吐量 11 rps，
 检索命中率 83.3%，Top-1 平均分 0.919。
 
+## 集成维护提醒
+
+这个仓库当前已经被数字人原型作为真实工具后端接入。
+
+如果要调整工具接口、字段或响应形状，请先看：
+
+- [docs/digital-human-integration-notes.md](docs/digital-human-integration-notes.md)
+
 ## 配置说明
 
 | 环境变量 | 默认值 | 说明 |
