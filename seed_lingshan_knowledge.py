@@ -1,15 +1,17 @@
-import os
+"""灵山胜境知识库种子数据导入脚本(FastAPI/SQLAlchemy 版)。
+
+用法:
+    python seed_lingshan_knowledge.py
+
+导入后自动重建向量索引。如需下载模型先运行 download_model.py。
+"""
+from app.common.db import init_db, SessionLocal
+from app.tools.rag.models import KnowledgeItem
+from app.tools.rag.vector_service import vector_service
 
 
-def main():
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'measurePrj.settings')
-
-    import django
-
-    django.setup()
-
-    from measureapp.models import KnowledgeItem
-    from measureapp.vector_service import vector_service
+def seed():
+    init_db()
 
     items = [
         {
@@ -268,26 +270,32 @@ def main():
         },
     ]
 
+    session = SessionLocal()
     created = 0
     updated = 0
-    for it in items:
-        obj, was_created = KnowledgeItem.objects.update_or_create(
-            title=it['title'],
-            defaults={
-                'content': it['content'],
-                'category': it['category'],
-                'is_indexed': True,
-            },
-        )
-        if was_created:
-            created += 1
-        else:
-            updated += 1
+    try:
+        for it in items:
+            existing = session.query(KnowledgeItem).filter_by(title=it['title']).first()
+            if existing:
+                existing.content = it['content']
+                existing.category = it['category']
+                existing.is_indexed = True
+                updated += 1
+            else:
+                session.add(KnowledgeItem(
+                    title=it['title'],
+                    content=it['content'],
+                    category=it['category'],
+                    is_indexed=True,
+                ))
+                created += 1
+        session.commit()
+    finally:
+        session.close()
 
-    # Build/rebuild embeddings for indexed items.
     indexed_doc_count = vector_service.sync_all_knowledge()
-    print(f"seeded created={created} updated={updated} indexed_doc_count={indexed_doc_count}")
+    print(f'seeded created={created} updated={updated} indexed_doc_count={indexed_doc_count}')
 
 
 if __name__ == '__main__':
-    main()
+    seed()
