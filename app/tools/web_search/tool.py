@@ -1,12 +1,11 @@
 # app/tools/web_search/tool.py
-"""联网搜索工具(Tavily)。
+"""网页正文提取工具(Tavily extract)。
 
-action 取值:
-  - search:   搜索实时信息(景区公告/天气/新闻/交通),传 query
-  - extract:  提取指定 URL 正文,传 urls(列表)
+仅做确定性的「给定 URL → 提取正文」一件事。主动搜索能力不暴露给 Agent,
+避免 Agent 不可控地乱搜;数据库中已存的链接由 Agent 通过本工具解析正文。
 
-注:map / crawl / research 等能力保留在 client.py 作为底层方法,
-但不作为工具 action 暴露给 LLM(景区导览场景用不到)。
+注:search / map / crawl / research 等底层能力仍保留在 client.py,
+供内部/未来按需调用,但不作为工具 action 暴露。
 """
 from typing import Any
 
@@ -17,51 +16,33 @@ from app.tools.web_search.router import router as web_search_router
 
 class WebSearchTool(ToolBase):
     name = 'web_search'
-    description = (
-        '联网搜索与网页抓取(Tavily)。按 action 选择操作: '
-        'search=搜索实时信息(景区公告/天气/新闻/交通); '
-        'extract=提取指定 URL 的正文内容(当需要某个网页的全文时使用)。'
-    )
+    description = '提取指定网页 URL 的正文内容(Tavily extract)。当需要某个已知链接的全文/正文时使用。'
 
     @property
     def input_schema(self) -> dict:
         return {
             'type': 'object',
             'properties': {
-                'action': {
-                    'type': 'string',
-                    'enum': ['search', 'extract'],
-                    'default': 'search',
-                    'description': '操作类型',
-                },
-                'query': {'type': 'string', 'description': '搜索关键词(search 必填)'},
                 'urls': {
                     'type': 'array',
                     'items': {'type': 'string'},
-                    'description': 'URL 列表(extract 必填)',
+                    'description': '待提取正文的 URL 列表',
                 },
-                'max_results': {'type': 'integer', 'default': 5, 'description': '返回数量上限'},
-                'search_depth': {
+                'extract_depth': {
                     'type': 'string',
                     'default': 'basic',
-                    'description': '搜索深度: basic/advanced',
+                    'description': '提取深度: basic/advanced',
                 },
             },
-            'required': ['action'],
+            'required': ['urls'],
         }
 
     async def execute(self, params: dict) -> Any:
-        action = params.get('action', 'search')
         try:
-            if action == 'search':
-                return client.search(
-                    query=params.get('query', ''),
-                    max_results=params.get('max_results', 5),
-                    search_depth=params.get('search_depth', 'basic'),
-                )
-            if action == 'extract':
-                return client.extract(urls=params.get('urls', []))
-            return {'error': f'未知 action: {action}'}
+            return client.extract(
+                urls=params.get('urls', []),
+                extract_depth=params.get('extract_depth', 'basic'),
+            )
         except client.TavilyError as exc:
             return {'error': str(exc)}
 
