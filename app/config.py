@@ -38,9 +38,28 @@ RAG_MAX_LENGTH = int(os.getenv('RAG_MAX_LENGTH', '8192'))
 RAG_RETRIEVAL_TOP_K = int(os.getenv('RAG_RETRIEVAL_TOP_K', '20'))
 RAG_RETRIEVAL_MIN_SCORE = float(os.getenv('RAG_RETRIEVAL_MIN_SCORE', '0.2'))
 RAG_POOLING = (os.getenv('RAG_POOLING', 'cls') or 'cls').strip().lower()
-RAG_RERANKER_MAX_LENGTH = int(os.getenv('RAG_RERANKER_MAX_LENGTH', '512'))
 RAG_PREWARM_ON_STARTUP = os.getenv('RAG_PREWARM_ON_STARTUP', 'true').lower() in ('1', 'true', 'yes', 'on')
-RAG_ENABLE_RERANKER = os.getenv('RAG_ENABLE_RERANKER', 'false').lower() in ('1', 'true', 'yes', 'on')
+
+# Stage 2: 检索质量相关
+# query 前缀(BGE-M3 实测对前缀不敏感,默认空串;部分 BGE 系列需要 "query: ")。
+RAG_QUERY_PREFIX = os.getenv('RAG_QUERY_PREFIX', '')
+# 严格分数门槛:候选低于 min_retrieval_score 时不回退硬塞(默认严格,返空交给关键词兜底)。
+RAG_STRICT_THRESHOLD = os.getenv('RAG_STRICT_THRESHOLD', 'true').lower() in ('1', 'true', 'yes', 'on')
+
+# Stage 3: 索引持久化(避免重启重新编码全部文档)
+# 缓存目录存放 rag_index_embeddings.npy + rag_index_meta.json。
+RAG_CACHE_DIR = BASE_DIR / os.getenv('RAG_CACHE_DIR_REL', 'cache')
+RAG_CACHE_DISABLED = os.getenv('RAG_CACHE_DISABLED', 'false').lower() in ('1', 'true', 'yes', 'on')
+
+# Stage 4: CPU 推理加速
+# INT8 动态量化(仅 CPU,opt-in 默认关)。对 nn.Linear 做 qint8 量化可降低延迟与内存,
+# 但可能轻微影响检索质量,默认关闭,需 eval 验证 Recall/MRR 降幅 <1% 后再开。
+RAG_INT8_QUANTIZE = os.getenv('RAG_INT8_QUANTIZE', 'false').lower() in ('1', 'true', 'yes', 'on')
+
+# CPU 推理线程数。并发检索场景下过多内部线程会与请求线程超额订阅反而变慢,
+# 默认取 min(物理核数, 4),上限 8。0 表示不设置(用 torch 默认)。
+_cpu_count = os.cpu_count() or 4
+RAG_TORCH_NUM_THREADS = int(os.getenv('RAG_TORCH_NUM_THREADS') or min(_cpu_count, 4))
 
 
 def resolve_model_name(env_var: str, local_dir_name: str) -> str:
@@ -52,12 +71,9 @@ def resolve_model_name(env_var: str, local_dir_name: str) -> str:
     if local_path.exists():
         return str(local_path)
     # 返回默认 HuggingFace repo
-    defaults = {
-        'RAG_EMBEDDING_MODEL': 'BAAI/bge-m3',
-        'RAG_RERANKER_MODEL': 'BAAI/bge-reranker-v2-m3',
-    }
-    return defaults.get(env_var, '')
+    if env_var == 'RAG_EMBEDDING_MODEL':
+        return 'BAAI/bge-m3'
+    return ''
 
 
 RAG_EMBEDDING_MODEL = resolve_model_name('RAG_EMBEDDING_MODEL', 'bge-m3')
-RAG_RERANKER_MODEL = resolve_model_name('RAG_RERANKER_MODEL', 'bge-reranker-v2-m3')
