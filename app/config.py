@@ -21,9 +21,25 @@ DB_URL = os.getenv('DB_URL', f'sqlite:///{BASE_DIR / "db.sqlite3"}')
 # ---- 文件上传(反馈图片等) ----
 UPLOAD_DIR = BASE_DIR / 'uploads'
 
-# ---- 联网搜索(Tavily 风格,走自建代理) ----
-TAVILY_API_KEY = os.getenv('TAVILY_API_KEY', '')
-TAVILY_BASE_URL = os.getenv('TAVILY_BASE_URL', 'https://tavily.ivanli.cc/api/tavily')
+# ---- 自研网页正文爬取器(fetcher) ----
+# 正文提取基于 httpx(async) + trafilatura,无外部 API 依赖。
+FETCHER_USER_AGENT = os.getenv(
+    'FETCHER_USER_AGENT',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+    '(KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+)
+FETCHER_CONNECT_TIMEOUT = float(os.getenv('FETCHER_CONNECT_TIMEOUT', '8'))
+FETCHER_READ_TIMEOUT = float(os.getenv('FETCHER_READ_TIMEOUT', '20'))
+FETCHER_MAX_RETRIES = int(os.getenv('FETCHER_MAX_RETRIES', '1'))
+FETCHER_CONCURRENCY = int(os.getenv('FETCHER_CONCURRENCY', '6'))   # 并发抓取上限
+FETCHER_MAX_URLS = int(os.getenv('FETCHER_MAX_URLS', '20'))       # 单批 URL 数上限
+FETCHER_MIN_CHARS = int(os.getenv('FETCHER_MIN_CHARS', '80'))     # 正文最短字符数,不足降级
+FETCHER_SSRF_ENABLED = os.getenv('FETCHER_SSRF_ENABLED', 'true').lower() in ('1', 'true', 'yes', 'on')
+# SSRF 白名单 CIDR(逗号分隔)。生产留空=最严;开发机若走 fake-ip 代理(域名→198.18.0.0/15),
+# 可设 FETCHER_ALLOWED_IPS=198.18.0.0/15 放行该段。
+FETCHER_ALLOWED_IPS = [
+    c.strip() for c in os.getenv('FETCHER_ALLOWED_IPS', '').split(',') if c.strip()
+]
 
 # ---- LLM(报单智能整合等后台任务) ----
 LLM_API_KEY = os.getenv('LLM_API_KEY', '')

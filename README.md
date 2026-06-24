@@ -19,7 +19,7 @@
 | `rag_search` | 景区知识库向量检索（BGE-M3 + 关键词兜底 + 热词缓存） |
 | `feedback` | 游客反馈提交/查询/更新 + LLM 智能整合（去重分组、优先级升级） |
 | `emergency` | 应急事件上报与响应流程追踪 |
-| `web_search` | 联网搜索与网页正文抓取（Tavily） |
+| `web_search` | 网页正文提取（自研 fetcher，httpx + trafilatura） |
 
 ## RAG 检索核心流程
 
@@ -155,7 +155,7 @@ app/
     │   └── eval_retrieval.py  # 检索质量评测脚本（非生产代码）
     ├── feedback/          # 用户反馈 + LLM 智能整合
     ├── emergency/         # 应急事件
-    └── web_search/        # 联网搜索（Tavily）
+    └── web_search/        # 网页正文提取（自研 fetcher）
 ```
 
 ## 检索质量与性能参考
@@ -209,4 +209,3 @@ app/
 | `RAG_CACHE_DIR` | `cache/` | 索引持久化目录 |
 | `RAG_CACHE_DISABLED` | `false` | 关闭索引持久化 |
 | `LLM_API_KEY` | （空） | feedback 智能整合用，留空则降级 |
-| `TAVILY_API_KEY` | （空） | 联网搜索用 |

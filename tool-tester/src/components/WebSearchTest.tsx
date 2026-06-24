@@ -129,7 +129,7 @@ export const WebSearchTest: React.FC<WebSearchTestProps> = ({ apiUrl, onSetRawJs
       {action === 'search' ? (
         /* Search Form */
         <div className="glass-card">
-          <h3 style={{ marginBottom: '1.25rem' }}>Tavily 网页检索</h3>
+          <h3 style={{ marginBottom: '1.25rem' }}>网页正文提取</h3>
           <form onSubmit={handleSearchSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label htmlFor="search_query">搜索关键词 (Query)</label>

@@ -14,6 +14,7 @@ class WebExtractResult(BaseModel):
     url: Optional[str] = ''
     title: Optional[str] = ''
     raw_content: Optional[str] = ''
+    word_count: Optional[int] = None
 
 
 class WebExtractResponse(BaseModel):

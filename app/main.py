@@ -23,7 +23,12 @@ async def lifespan(app: FastAPI):
             vector_service.ensure_index()
         except Exception as exc:
             print(f"DEBUG_RAG_PREWARM_FAILED: {exc}")
+    # 预热 web_search fetcher 连接池(httpx AsyncClient 单例)。
+    from app.tools.web_search import fetcher
+    fetcher.get_client()
     yield
+    # 回收连接池。
+    await fetcher.close_client()
 
 
 app = FastAPI(
