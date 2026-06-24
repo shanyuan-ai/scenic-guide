@@ -136,7 +136,7 @@ function App() {
                 onClick={() => setActiveTab('web_search')}
               >
                 <Globe size={18} />
-                联网搜索 (Tavily)
+                网页正文提取
               </button>
             </li>
             <li className="nav-item">

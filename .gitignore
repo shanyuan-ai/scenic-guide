@@ -26,6 +26,9 @@ temp/
 # 上传目录(反馈图片等)
 uploads/
 
+# RAG 索引持久化缓存(embeddings + 指纹元数据)
+cache/
+
 # Node.js 依赖
 **/node_modules/
 

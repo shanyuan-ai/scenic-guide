@@ -14,7 +14,6 @@ MODELS_DIR = BASE_DIR / 'models'
 # (ModelScope 模型 ID, 本地子目录名)
 MODELS = [
     ('Xorbits/bge-m3', 'bge-m3'),
-    ('BAAI/bge-reranker-v2-m3', 'bge-reranker-v2-m3'),
 ]
 
 

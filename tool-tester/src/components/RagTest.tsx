@@ -15,7 +15,6 @@ interface SearchResult {
   score: number;
   source_type: string;
   retrieval_score?: number;
-  rerank_score?: number;
 }
 
 interface IndexStatus {
@@ -205,11 +204,6 @@ export const RagTest: React.FC<RagTestProps> = ({ apiUrl, onSetRawJson }) => {
                     <span className="badge" style={{ backgroundColor: 'var(--success-glow)', color: 'var(--success)', fontSize: '0.8rem', padding: '0.3rem 0.6rem' }}>
                       得分: {item.score.toFixed(3)}
                     </span>
-                    {item.rerank_score !== undefined && item.rerank_score !== null && (
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                        重排: {item.rerank_score.toFixed(3)} | 召回: {item.retrieval_score?.toFixed(3)}
-                      </div>
-                    )}
                   </div>
                 </div>
                 <p className="result-content" style={{ marginTop: '0.75rem' }}>
