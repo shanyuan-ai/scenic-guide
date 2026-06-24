@@ -81,7 +81,7 @@
 - `score`
 - `source_type`
 
-`retrieval_score` 和 `rerank_score` 可以为空；数字人侧允许没有它们。
+`retrieval_score` 可以为空；数字人侧允许没有它。
 
 #### Feedback 响应
 
@@ -110,7 +110,6 @@
 - ORM 模型命名
 - service / router 拆分方式
 - 检索策略
-- reranker 是否启用
 - 预热策略
 - 日志结构
 - 管理端、压测、前端测试页

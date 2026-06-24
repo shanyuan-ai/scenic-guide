@@ -12,7 +12,6 @@ class SearchResult(BaseModel):
     score: float
     source_type: str
     retrieval_score: Optional[float] = None
-    rerank_score: Optional[float] = None
 
 
 class SearchResponse(BaseModel):
